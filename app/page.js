@@ -242,6 +242,7 @@ export default function Home() {
   const [curUnit, setCurUnit] = useState('IDR');
   const [idrPerUsd, setIdrPerUsd] = useState(15000); // default editable rate
   const [jpyPerUsd, setJpyPerUsd] = useState(150); // default editable rate
+  const [krwPerUsd, setKrwPerUsd] = useState(1300); // default editable rate for KRW
 
   // temperature helpers
   const toFahrenheit = (c) => {
@@ -258,50 +259,92 @@ export default function Home() {
   };
 
   // length helpers - convert to base unit (meter) then to target
+  // include metric prefixes from kilo -> milli plus common imperial units
   const lengthUnits = {
-    'km': 1000,
-    'm': 1,
-    'cm': 0.01,
-    'mm': 0.001,
-    'in': 0.0254,
-    'ft': 0.3048
-  };
-  const convertLength = (val, fromUnit, toUnit) => {
-    const n = parseFloat(val) || 0;
-    const meters = n * (lengthUnits[fromUnit] || 1);
-    const result = meters / (lengthUnits[toUnit] || 1);
-    return result.toFixed(6);
-  };
-  const getAllLengthUnits = () => {
-    return Object.keys(lengthUnits).map(u => ({
-      value: u,
-      label: u === 'km' ? 'Kilometer' : u === 'm' ? 'Meter' : u === 'cm' ? 'Centimeter' : u === 'mm' ? 'Millimeter' : u === 'in' ? 'Inch' : 'Feet'
-    }));
+    km: 1000,   // kilometer
+    hm: 100,    // hectometer
+    dam: 10,    // decameter
+    m: 1,       // meter
+    dm: 0.1,    // decimeter
+    cm: 0.01,   // centimeter
+    mm: 0.001,  // millimeter
+    in: 0.0254, // inch
+    ft: 0.3048  // foot
   };
 
-  // weight helpers - convert to base unit (kg) then to target
+  // helper: format numeric output - trim trailing zeros and small/large detection
+  const formatNumberSmart = (v, decimals = 6) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '0';
+    // convert to exponential for extremely small/large numbers for readability
+    if (Math.abs(n) >= 1e9 || (Math.abs(n) > 0 && Math.abs(n) < 1e-6)) {
+      return n.toExponential(6);
+    }
+    let s = n.toFixed(decimals);
+    // remove trailing zeros
+    s = s.replace(/(?:\.0+|(?<=\.[0-9]*?)0+)$/g, '');
+    return s;
+  };
+
+  const convertLength = (val, fromUnit, toUnit) => {
+    const n = parseFloat(val);
+    if (Number.isNaN(n)) return '0';
+    const meters = n * (lengthUnits[fromUnit] ?? 1);
+    const result = meters / (lengthUnits[toUnit] ?? 1);
+    return formatNumberSmart(result, 6);
+  };
+
+  const getAllLengthUnits = () => {
+    const order = ['km', 'hm', 'dam', 'm', 'dm', 'cm', 'mm', 'in', 'ft'];
+    const labels = {
+      km: 'Kilometer (km)',
+      hm: 'Hectometer (hm)',
+      dam: 'Decameter (dam)',
+      m: 'Meter (m)',
+      dm: 'Decimeter (dm)',
+      cm: 'Centimeter (cm)',
+      mm: 'Millimeter (mm)',
+      in: 'Inch (in)',
+      ft: 'Feet (ft)'
+    };
+    return order.map(u => ({ value: u, label: labels[u] }));
+  };
+
+  // weight helpers - convert to base unit (kilogram) then to target
   const weightUnits = {
-    'kg': 1,
-    'hg': 0.1,
-    'dag': 0.01,
-    'g': 0.001,
-    'dg': 0.0001,
-    'cg': 0.00001,
-    'mg': 0.000001,
-    'lb': 0.453592,
-    'oz': 0.0283495
+    kg: 1,
+    hg: 0.1,
+    dag: 0.01,
+    g: 0.001,
+    dg: 0.0001,
+    cg: 0.00001,
+    mg: 0.000001,
+    lb: 0.45359237, // pound in kg
+    oz: 0.0283495231 // ounce in kg
   };
+
   const convertWeight = (val, fromUnit, toUnit) => {
-    const n = parseFloat(val) || 0;
-    const kg = n * (weightUnits[fromUnit] || 1);
-    const result = kg / (weightUnits[toUnit] || 1);
-    return result.toFixed(6);
+    const n = parseFloat(val);
+    if (Number.isNaN(n)) return '0';
+    const kg = n * (weightUnits[fromUnit] ?? 1);
+    const result = kg / (weightUnits[toUnit] ?? 1);
+    return formatNumberSmart(result, 6);
   };
+
   const getAllWeightUnits = () => {
-    return Object.keys(weightUnits).map(u => ({
-      value: u,
-      label: u === 'kg' ? 'Kilogram' : u === 'hg' ? 'Hectogram' : u === 'dag' ? 'Decagram' : u === 'g' ? 'Gram' : u === 'dg' ? 'Decigram' : u === 'cg' ? 'Centigram' : u === 'mg' ? 'Milligram' : u === 'lb' ? 'Pound' : 'Ounce'
-    }));
+    const order = ['kg', 'hg', 'dag', 'g', 'dg', 'cg', 'mg', 'lb', 'oz'];
+    const labels = {
+      kg: 'Kilogram (kg)',
+      hg: 'Hectogram (hg)',
+      dag: 'Decagram (dag)',
+      g: 'Gram (g)',
+      dg: 'Decigram (dg)',
+      cg: 'Centigram (cg)',
+      mg: 'Milligram (mg)',
+      lb: 'Pound (lb)',
+      oz: 'Ounce (oz)'
+    };
+    return order.map(u => ({ value: u, label: labels[u] }));
   };
 
   // currency helpers (use editable rates)
@@ -312,16 +355,18 @@ export default function Home() {
     if (curUnit === 'USD') usd = v;
     else if (curUnit === 'IDR') usd = v / idrPerUsd;
     else if (curUnit === 'JPY') usd = v / jpyPerUsd;
+    else if (curUnit === 'KRW') usd = v / krwPerUsd;
 
     if (target === 'USD') return usd.toFixed(2);
     if (target === 'IDR') return Math.round(usd * idrPerUsd).toString();
     if (target === 'JPY') return Math.round(usd * jpyPerUsd).toString();
+    if (target === 'KRW') return Math.round(usd * krwPerUsd).toString();
     return '';
   };
 
   return (
   <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-[#181c2b] via-[#23243a] to-[#1a1a2e] font-sans" onKeyDown={handleKey} tabIndex={0}>
-      <main className="w-[370px] rounded-2xl bg-[#23243a] p-5 shadow-2xl border border-[#23243a]/60">
+      <main className="w-[95%] max-w-[820px] rounded-2xl bg-[#23243a] p-5 shadow-2xl border border-[#23243a]/60">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold text-[#a3bffa] tracking-wide">Calculator</h2>
           <div className="flex items-center gap-3">
@@ -468,6 +513,7 @@ export default function Home() {
                       <option value="IDR">Rupiah (IDR)</option>
                       <option value="USD">Dollar (USD)</option>
                       <option value="JPY">Yen (JPY)</option>
+                      <option value="KRW">Won (KRW)</option>
                     </select>
                   </div>
                 </label>
@@ -480,11 +526,16 @@ export default function Home() {
                   <input type="number" value={jpyPerUsd} onChange={(e)=>setJpyPerUsd(Number(e.target.value)||1)} className="rounded px-2 py-1 bg-[#232735] text-[#f8fafc]" />
                   <div className="text-sm text-[#b6c3ff] self-center">JPY per USD</div>
                 </div>
+                <div className="flex gap-2 mt-1">
+                  <input type="number" value={krwPerUsd} onChange={(e)=>setKrwPerUsd(Number(e.target.value)||1)} className="rounded px-2 py-1 bg-[#232735] text-[#f8fafc]" />
+                  <div className="text-sm text-[#b6c3ff] self-center">KRW per USD</div>
+                </div>
 
                 <div className="grid grid-cols-3 gap-2 mt-2">
                   <div className="p-2 bg-[#232735] rounded">IDR<div className="font-semibold mt-1">{toCurrency('IDR')}</div></div>
                   <div className="p-2 bg-[#232735] rounded">USD<div className="font-semibold mt-1">{toCurrency('USD')}</div></div>
                   <div className="p-2 bg-[#232735] rounded">JPY<div className="font-semibold mt-1">{toCurrency('JPY')}</div></div>
+                  <div className="p-2 bg-[#232735] rounded">KRW<div className="font-semibold mt-1">{toCurrency('KRW')}</div></div>
                 </div>
               </div>
             )}
